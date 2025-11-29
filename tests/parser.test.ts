@@ -1,5 +1,5 @@
 import { parse } from '../src/index';
-import { Document, Section, Paragraph, Directive, Table, TableRow, TableCell, Tabs, Tab, LiteralBlock, Admonition, Container, Image, Figure, Card } from '../src/ast/types';
+import { Document, Section, Paragraph, Directive, Table, TableRow, TableCell, Tabs, Tab, LiteralBlock, Admonition, Container, Image, Figure, Card, Heading } from '../src/ast/types';
 
 describe('RST Parser', () => {
     test('parses simple paragraph', () => {
@@ -32,9 +32,9 @@ Content
 `;
         const result = parse(input);
         expect(result.children).toHaveLength(2);
-        expect(result.children[0].type).toBe('section');
-        expect((result.children[0] as Section).title).toBe('Title');
-        expect((result.children[0] as Section).level).toBe(1);
+        expect(result.children[0].type).toBe('heading');
+        expect((result.children[0] as Heading).title).toBe('Title');
+        expect((result.children[0] as Heading).level).toBe(3);
         expect(result.children[1].type).toBe('paragraph');
     });
 
@@ -2720,6 +2720,311 @@ describe('RST Images and Figures', () => {
         const fig = result.children[3] as Figure;
         expect(fig.height).toBe('400px');
         expect(fig.scale).toBe('120%');
+    });
+});
+
+describe('RST Headings', () => {
+    test('parses heading level 1 with overline and underline', () => {
+        const input = `
+#######
+Level 1
+#######
+
+Some text here.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(1);
+        expect(heading.title).toBe('Level 1');
+    });
+
+    test('parses heading level 2 with overline and underline', () => {
+        const input = `
+*******
+Level 2
+*******
+
+Content goes here.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(2);
+        expect(heading.title).toBe('Level 2');
+    });
+
+    test('parses heading level 3 with underline only', () => {
+        const input = `
+Level 3
+=======
+
+Content here.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(3);
+        expect(heading.title).toBe('Level 3');
+    });
+
+    test('parses heading level 4 with underline only', () => {
+        const input = `
+Level 4
+-------
+
+Paragraph here.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(4);
+        expect(heading.title).toBe('Level 4');
+    });
+
+    test('parses heading level 5 with underline only', () => {
+        const input = `
+Level 5
+^^^^^^^
+
+Text content.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(5);
+        expect(heading.title).toBe('Level 5');
+    });
+
+    test('parses heading level 6 with underline only', () => {
+        const input = `
+Level 6
+"""""""
+
+Final paragraph.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(6);
+        expect(heading.title).toBe('Level 6');
+    });
+
+    test('parses multiple headings with mixed levels', () => {
+        const input = `
+#######
+Title
+#######
+
+Introduction text.
+
+Section One
+===========
+
+Section one content.
+
+Subsection
+----------
+
+Subsection content.
+`;
+        const result = parse(input);
+        
+        const headings = result.children.filter((child: any) => child.type === 'heading');
+        expect(headings).toHaveLength(3);
+        
+        expect((headings[0] as Heading).level).toBe(1);
+        expect((headings[0] as Heading).title).toBe('Title');
+        
+        expect((headings[1] as Heading).level).toBe(3);
+        expect((headings[1] as Heading).title).toBe('Section One');
+        
+        expect((headings[2] as Heading).level).toBe(4);
+        expect((headings[2] as Heading).title).toBe('Subsection');
+    });
+
+    test('parses heading with longer underline than title', () => {
+        const input = `
+Short
+===========
+
+Content follows.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(3);
+        expect(heading.title).toBe('Short');
+    });
+
+    test('parses heading with exact length underline', () => {
+        const input = `
+Exact
+=====
+
+Text.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(3);
+        expect(heading.title).toBe('Exact');
+    });
+
+    test('parses heading with special characters in title', () => {
+        const input = `
+Getting Started & Installation
+===============================
+
+Setup instructions.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(3);
+        expect(heading.title).toBe('Getting Started & Installation');
+    });
+
+    test('parses heading level 1 with centered content', () => {
+        const input = `
+#####################
+Welcome to Our Guide
+#####################
+
+Guide content.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(1);
+        expect(heading.title).toBe('Welcome to Our Guide');
+    });
+
+    test('parses heading without blank line after (still consumes)', () => {
+        const input = `
+Title
+=====
+Next paragraph starts here.
+`;
+        const result = parse(input);
+        
+        const heading = result.children[0] as Heading;
+        expect(heading.type).toBe('heading');
+        expect(heading.level).toBe(3);
+        expect(heading.title).toBe('Title');
+    });
+
+    test('parses consecutive headings with different levels', () => {
+        const input = `
+#######
+Main
+#######
+
+*******
+Sub
+*******
+
+Details
+=======
+
+Content.
+`;
+        const result = parse(input);
+        
+        const headings = result.children.filter((child: any) => child.type === 'heading');
+        expect(headings).toHaveLength(3);
+        
+        expect((headings[0] as Heading).level).toBe(1);
+        expect((headings[1] as Heading).level).toBe(2);
+        expect((headings[2] as Heading).level).toBe(3);
+    });
+
+    test('parses heading in RST document structure', () => {
+        const input = `
+#####################
+Page Title
+#####################
+
+Introduction paragraph.
+
+*******************
+Section Heading
+*******************
+
+Section content.
+
+Subsection Title
+================
+
+Subsection content with details.
+
+Minor Heading
+-------------
+
+Minor section content.
+`;
+        const result = parse(input);
+        
+        const headings = result.children.filter((child: any) => child.type === 'heading');
+        expect(headings.length).toBeGreaterThanOrEqual(4);
+        
+        expect((headings[0] as Heading).level).toBe(1);
+        expect((headings[1] as Heading).level).toBe(2);
+        expect((headings[2] as Heading).level).toBe(3);
+        expect((headings[3] as Heading).level).toBe(4);
+    });
+
+    test('parses heading with all 6 levels', () => {
+        const input = `
+#######
+H1
+#######
+
+*******
+H2
+*******
+
+H3
+==
+
+H4
+--
+
+H5
+^^
+
+H6
+""
+`;
+        const result = parse(input);
+        
+        const headings = result.children.filter((child: any) => child.type === 'heading');
+        expect(headings).toHaveLength(6);
+        
+        for (let i = 1; i <= 6; i++) {
+            expect((headings[i - 1] as Heading).level).toBe(i as 1 | 2 | 3 | 4 | 5 | 6);
+            expect((headings[i - 1] as Heading).title).toBe(`H${i}`);
+        }
     });
 });
 

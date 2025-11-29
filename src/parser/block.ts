@@ -10,6 +10,7 @@ import { AdmonitionParser } from './admonition';
 import { ContainerParser } from './container';
 import { ImageParser } from './image';
 import { CardParser } from './card';
+import { HeadingParser } from './heading';
 import { Node, Document, Section, Paragraph } from '../ast/types';
 
 export class BlockParser {
@@ -25,6 +26,7 @@ export class BlockParser {
     private containerParser: ContainerParser;
     private imageParser: ImageParser;
     private cardParser: CardParser;
+    private headingParser: HeadingParser;
 
     constructor(state: ParserState) {
         this.state = state;
@@ -39,6 +41,7 @@ export class BlockParser {
         this.containerParser = new ContainerParser(state, this);
         this.imageParser = new ImageParser(state, this);
         this.cardParser = new CardParser(state, this);
+        this.headingParser = new HeadingParser(state);
     }
 
     public parse(): Document {
@@ -65,6 +68,12 @@ export class BlockParser {
         if (line.trim() === '') {
             this.state.consumeLine();
             return null;
+        }
+
+        // Check for Headings first (they have specific structure)
+        const heading = this.headingParser.parse();
+        if (heading) {
+            return heading;
         }
 
         // Check for Cards

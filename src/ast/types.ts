@@ -129,3 +129,9 @@ export interface Card extends Node {
     children: Node[]; // Card content
     options?: Record<string, string>; // Card options (class-card, link, etc.)
 }
+
+export interface Heading extends Node {
+    type: 'heading';
+    level: 1 | 2 | 3 | 4 | 5 | 6; // Heading level
+    title: string; // Heading text
+}
