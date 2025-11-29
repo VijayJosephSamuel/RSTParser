@@ -11,6 +11,10 @@ import { ContainerParser } from './container';
 import { ImageParser } from './image';
 import { CardParser } from './card';
 import { HeadingParser } from './heading';
+import { ButtonParser } from './button';
+import { CodeBlockParser } from './code-block';
+import { DropdownParser } from './dropdown';
+import { GridParser } from './grid';
 import { Node, Document, Section, Paragraph } from '../ast/types';
 
 export class BlockParser {
@@ -27,6 +31,10 @@ export class BlockParser {
     private imageParser: ImageParser;
     private cardParser: CardParser;
     private headingParser: HeadingParser;
+    private buttonParser: ButtonParser;
+    private codeBlockParser: CodeBlockParser;
+    private dropdownParser: DropdownParser;
+    private gridParser: GridParser;
 
     constructor(state: ParserState) {
         this.state = state;
@@ -42,6 +50,10 @@ export class BlockParser {
         this.imageParser = new ImageParser(state, this);
         this.cardParser = new CardParser(state, this);
         this.headingParser = new HeadingParser(state);
+        this.buttonParser = new ButtonParser(state);
+        this.codeBlockParser = new CodeBlockParser(state);
+        this.dropdownParser = new DropdownParser(state, this);
+        this.gridParser = new GridParser(state, this);
     }
 
     public parse(): Document {
@@ -74,6 +86,30 @@ export class BlockParser {
         const heading = this.headingParser.parse();
         if (heading) {
             return heading;
+        }
+
+        // Check for Buttons
+        const button = this.buttonParser.parse();
+        if (button) {
+            return button;
+        }
+
+        // Check for Code Blocks
+        const codeBlock = this.codeBlockParser.parse();
+        if (codeBlock) {
+            return codeBlock;
+        }
+
+        // Check for Grids
+        const grid = this.gridParser.parse();
+        if (grid) {
+            return grid;
+        }
+
+        // Check for Dropdowns
+        const dropdown = this.dropdownParser.parse();
+        if (dropdown) {
+            return dropdown;
         }
 
         // Check for Cards

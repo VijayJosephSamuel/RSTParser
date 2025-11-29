@@ -135,3 +135,55 @@ export interface Heading extends Node {
     level: 1 | 2 | 3 | 4 | 5 | 6; // Heading level
     title: string; // Heading text
 }
+
+export interface ButtonLink extends Node {
+    type: 'button-link';
+    url: string; // External URL
+    text: string; // Button text content
+    class?: string; // CSS class (link-button, link-button button-bg-fill, etc.)
+    options?: Record<string, string>; // Other options
+}
+
+export interface ButtonRef extends Node {
+    type: 'button-ref';
+    ref: string; // Internal reference/anchor
+    text: string; // Button text content
+    class?: string; // CSS class (ref-button, ref-button button-bg-fill, etc.)
+    options?: Record<string, string>; // Other options
+}
+
+export interface CodeBlock extends Node {
+    type: 'code-block';
+    language?: string; // Programming language for syntax highlighting (rst, python, javascript, etc.)
+    content: string; // Raw code content
+    parsed?: boolean; // Whether parsed-literal (allows RST markup)
+    options?: Record<string, string>; // Other options (linenos, emphasize-lines, etc.)
+}
+
+export interface Dropdown extends Node {
+    type: 'dropdown';
+    title: string; // Dropdown title/label
+    children: Node[]; // Dropdown content (paragraphs, lists, code blocks, etc.)
+    options?: Record<string, string>; // Other options
+}
+
+export interface Grid extends Node {
+    type: 'grid';
+    columns: number[]; // Responsive column counts: [mobile, tablet, laptop, desktop]
+    gutter?: string | number[]; // Spacing between items (single value or responsive)
+    children: (GridItem | GridItemCard)[]; // Grid items
+    options?: Record<string, string>; // Other options (outline, etc.)
+}
+
+export interface GridItem extends Node {
+    type: 'grid-item';
+    children: Node[]; // Grid item content (can contain text, containers, nested grids, etc.)
+}
+
+export interface GridItemCard extends Node {
+    type: 'grid-item-card';
+    title?: string; // Card title (from directive argument)
+    children: Node[]; // Card content
+    options?: Record<string, string>; // Card options (class-card, link, class-title, class-body, etc.)
+}
+

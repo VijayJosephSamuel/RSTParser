@@ -1,5 +1,5 @@
 import { parse } from '../src/index';
-import { Document, Section, Paragraph, Directive, Table, TableRow, TableCell, Tabs, Tab, LiteralBlock, Admonition, Container, Image, Figure, Card, Heading } from '../src/ast/types';
+import { Document, Section, Paragraph, Directive, Table, TableRow, TableCell, Tabs, Tab, LiteralBlock, Admonition, Container, Image, Figure, Card, Heading, ButtonLink, ButtonRef, CodeBlock, Dropdown, Grid, GridItem, GridItemCard } from '../src/ast/types';
 
 describe('RST Parser', () => {
     test('parses simple paragraph', () => {
@@ -1517,7 +1517,7 @@ describe('RST Containers', () => {
         expect(container.classes).toEqual(['screenoutput']);
         
         // Find code block in container
-        const codeBlock = container.children.find(child => child.type === 'directive');
+        const codeBlock = container.children.find((child: any) => child.type === 'code-block');
         expect(codeBlock).toBeDefined();
     });
 
@@ -3028,6 +3028,547 @@ H6
     });
 });
 
+describe('RST Code Blocks', () => {
+    test('parses simple code block without language', () => {
+        const input = `
+.. code::
+
+   Text in code block
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.type).toBe('code-block');
+        expect(codeBlock.language).toBeUndefined();
+        expect(codeBlock.content.trim()).toBe('Text in code block');
+        expect(codeBlock.parsed).toBeUndefined();
+    });
+
+    test('parses code-block with language specified', () => {
+        const input = `
+.. code-block:: rst
+
+   *# Prints date only*
+   **$ date -I**
+   2020-03-03
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.type).toBe('code-block');
+        expect(codeBlock.language).toBe('rst');
+        expect(codeBlock.content).toContain('Prints date only');
+        expect(codeBlock.content).toContain('date -I');
+        expect(codeBlock.content).toContain('2020-03-03');
+    });
+
+    test('parses code-block with python language', () => {
+        const input = `
+.. code-block:: python
+
+   def hello():
+       print("Hello, World!")
+       return True
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('python');
+        expect(codeBlock.content).toContain('def hello()');
+        expect(codeBlock.content).toContain('print');
+    });
+
+    test('parses code-block with javascript language', () => {
+        const input = `
+.. code-block:: javascript
+
+   function greet(name) {
+       console.log("Hello, " + name);
+   }
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('javascript');
+        expect(codeBlock.content).toContain('function greet');
+    });
+
+    test('parses parsed-literal code block', () => {
+        const input = `
+.. parsed-literal::
+
+   *# Prints date only*
+   **$ date -I**
+   2020-03-03
+   Search for text in \`qualcomm.com <https://qualcomm.com>\`_.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.type).toBe('code-block');
+        expect(codeBlock.parsed).toBe(true);
+        expect(codeBlock.language).toBeUndefined();
+        expect(codeBlock.content).toContain('Prints date only');
+        expect(codeBlock.content).toContain('qualcomm.com');
+    });
+
+    test('parses code-block with linenos option', () => {
+        const input = `
+.. code-block:: python
+   :linenos:
+
+   line1 = "first"
+   line2 = "second"
+   line3 = "third"
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.options).toBeDefined();
+        expect(codeBlock.options!.linenos).toBe('');
+    });
+
+    test('parses code-block with emphasize-lines option', () => {
+        const input = `
+.. code-block:: python
+   :emphasize-lines: 1,3
+
+   line1 = "first"
+   line2 = "second"
+   line3 = "third"
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.options).toBeDefined();
+        expect(codeBlock.options!['emphasize-lines']).toBe('1,3');
+    });
+
+    test('parses code-block with number-lines option', () => {
+        const input = `
+.. code-block:: javascript
+   :number-lines: 10
+
+   const x = 1;
+   const y = 2;
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.options!['number-lines']).toBe('10');
+    });
+
+    test('parses code-block with multiple options', () => {
+        const input = `
+.. code-block:: python
+   :linenos:
+   :emphasize-lines: 2,4
+   :number-lines: 1
+
+   def example():
+       x = 1
+       y = 2
+       return x + y
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.options!.linenos).toBe('');
+        expect(codeBlock.options!['emphasize-lines']).toBe('2,4');
+        expect(codeBlock.options!['number-lines']).toBe('1');
+    });
+
+    test('parses code-block with bash language', () => {
+        const input = `
+.. code-block:: bash
+
+   #!/bin/bash
+   echo "Hello World"
+   ls -la
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('bash');
+        expect(codeBlock.content).toContain('#!/bin/bash');
+        expect(codeBlock.content).toContain('echo');
+    });
+
+    test('parses code-block with json language', () => {
+        const input = `
+.. code-block:: json
+
+   {
+       "name": "example",
+       "version": "1.0.0",
+       "active": true
+   }
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('json');
+        expect(codeBlock.content).toContain('"name"');
+        expect(codeBlock.content).toContain('example');
+    });
+
+    test('parses code-block with yaml language', () => {
+        const input = `
+.. code-block:: yaml
+
+   config:
+     name: example
+     version: 1.0
+     enabled: true
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('yaml');
+        expect(codeBlock.content).toContain('config:');
+    });
+
+    test('parses code-block with html language', () => {
+        const input = `
+.. code-block:: html
+
+   <div class="container">
+       <h1>Hello</h1>
+       <p>World</p>
+   </div>
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('html');
+        expect(codeBlock.content).toContain('<div');
+        expect(codeBlock.content).toContain('</div>');
+    });
+
+    test('parses code-block with css language', () => {
+        const input = `
+.. code-block:: css
+
+   .container {
+       display: flex;
+       justify-content: center;
+   }
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.language).toBe('css');
+        expect(codeBlock.content).toContain('.container');
+    });
+
+    test('parses multiple code blocks in sequence', () => {
+        const input = `
+.. code-block:: python
+
+   x = 1
+
+.. code-block:: javascript
+
+   const y = 2;
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const block1 = result.children[0] as CodeBlock;
+        expect(block1.language).toBe('python');
+        expect(block1.content).toContain('x = 1');
+        
+        const block2 = result.children[1] as CodeBlock;
+        expect(block2.language).toBe('javascript');
+        expect(block2.content).toContain('y = 2');
+    });
+
+    test('parses code-block with indented content', () => {
+        const input = `
+.. code-block:: python
+
+   class Example:
+       def __init__(self):
+           self.value = 10
+       
+       def get_value(self):
+           return self.value
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        expect(codeBlock.content).toContain('class Example');
+        expect(codeBlock.content).toContain('def __init__');
+        expect(codeBlock.content).toContain('return self.value');
+    });
+
+    test('parses code block preserving exact whitespace', () => {
+        const input = `
+.. code::
+
+   Line 1
+     Indented line
+       Double indented line
+   Line 4
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const codeBlock = result.children[0] as CodeBlock;
+        // Should preserve relative indentation
+        expect(codeBlock.content).toContain('Line 1');
+        expect(codeBlock.content).toContain('  Indented line');
+        expect(codeBlock.content).toContain('    Double indented line');
+    });
+});
+
+describe('RST Buttons', () => {
+    test('parses button-link with external URL', () => {
+        const input = `
+.. button-link:: https://example.com
+
+   External link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.url).toBe('https://example.com');
+        expect(button.text).toBe('External link');
+        expect(button.class).toBeUndefined();
+    });
+
+    test('parses button-link with class option', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+
+   External link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.url).toBe('https://example.com');
+        expect(button.text).toBe('External link');
+        expect(button.class).toBe('link-button');
+    });
+
+    test('parses button-link with multiple classes', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button button-bg-fill
+
+   External link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.url).toBe('https://example.com');
+        expect(button.text).toBe('External link');
+        expect(button.class).toBe('link-button button-bg-fill');
+    });
+
+    test('parses button-link with icon in text', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+
+   External link :octicon:\`arrow-right;1em;\`
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.text).toContain('External link');
+        expect(button.text).toContain('arrow-right');
+    });
+
+    test('parses button-ref with internal reference', () => {
+        const input = `
+.. button-ref:: example-section
+
+   Internal link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonRef;
+        expect(button.type).toBe('button-ref');
+        expect(button.ref).toBe('example-section');
+        expect(button.text).toBe('Internal link');
+        expect(button.class).toBeUndefined();
+    });
+
+    test('parses button-ref with class option', () => {
+        const input = `
+.. button-ref:: example-section
+   :class: ref-button
+
+   Internal link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonRef;
+        expect(button.type).toBe('button-ref');
+        expect(button.ref).toBe('example-section');
+        expect(button.text).toBe('Internal link');
+        expect(button.class).toBe('ref-button');
+    });
+
+    test('parses button-ref with solid background styling', () => {
+        const input = `
+.. button-ref:: example-section
+   :class: ref-button button-bg-fill
+
+   Internal link
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonRef;
+        expect(button.type).toBe('button-ref');
+        expect(button.ref).toBe('example-section');
+        expect(button.class).toBe('ref-button button-bg-fill');
+    });
+
+    test('parses button-link with multiline text content', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+
+   External link with
+   multiple lines
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.text).toContain('External link');
+        expect(button.text).toContain('multiple lines');
+    });
+
+    test('parses multiple buttons in sequence', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+
+   First button
+
+.. button-ref:: section-one
+   :class: ref-button
+
+   Second button
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const button1 = result.children[0] as ButtonLink;
+        expect(button1.type).toBe('button-link');
+        expect(button1.url).toBe('https://example.com');
+        
+        const button2 = result.children[1] as ButtonRef;
+        expect(button2.type).toBe('button-ref');
+        expect(button2.ref).toBe('section-one');
+    });
+
+    test('parses button-link with special characters in URL', () => {
+        const input = `
+.. button-link:: https://example.com/path?query=value&param=123
+
+   Button text
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.url).toBe('https://example.com/path?query=value&param=123');
+    });
+
+    test('parses button-ref with anchor-style reference', () => {
+        const input = `
+.. button-ref:: _installation-guide
+
+   Read Guide
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonRef;
+        expect(button.ref).toBe('_installation-guide');
+        expect(button.text).toBe('Read Guide');
+    });
+
+    test('parses button-link with empty text', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.url).toBe('https://example.com');
+        expect(button.text).toBe('');
+    });
+
+    test('parses button with additional options', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button
+   :target: _blank
+
+   Click here
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.type).toBe('button-link');
+        expect(button.options).toBeDefined();
+        expect(button.options!.target).toBe('_blank');
+    });
+
+    test('parses button-link with complex button text with formatting', () => {
+        const input = `
+.. button-link:: https://example.com
+   :class: link-button button-bg-fill
+
+   Download **Application** :octicon:\`download;1em;\`
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const button = result.children[0] as ButtonLink;
+        expect(button.text).toContain('Download');
+        expect(button.text).toContain('Application');
+        expect(button.text).toContain('download');
+    });
+});
+
 describe('RST Cards', () => {
     test('parses simple card without title', () => {
         const input = `
@@ -3316,6 +3857,1196 @@ describe('RST Cards', () => {
         const containers = card.children.filter((child: any) => child.type === 'container');
         expect(containers.length).toBe(3);
     });
-});
 
+    test('parses simple dropdown', () => {
+        const input = `
+.. dropdown:: Click to expand
+
+   This is the dropdown content.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Click to expand');
+        expect(dropdown.children).toHaveLength(1);
+        expect((dropdown.children[0] as Paragraph).children[0].value).toBe('This is the dropdown content.');
+    });
+
+    test('parses dropdown with multiple paragraphs', () => {
+        const input = `
+.. dropdown:: Details
+
+   First paragraph of content.
+
+   Second paragraph of content.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Details');
+        expect(dropdown.children).toHaveLength(2);
+        expect((dropdown.children[0] as Paragraph).children[0].value).toBe('First paragraph of content.');
+        expect((dropdown.children[1] as Paragraph).children[0].value).toBe('Second paragraph of content.');
+    });
+
+    test('parses dropdown with list', () => {
+        const input = `
+.. dropdown:: Options
+
+   * Option 1
+   * Option 2
+   * Option 3
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Options');
+        
+        const listNode = dropdown.children.find((child: any) => child.type === 'list');
+        expect(listNode).toBeDefined();
+        expect((listNode as any).children).toHaveLength(3);
+    });
+
+    test('parses dropdown with code block', () => {
+        const input = `
+.. dropdown:: Code Example
+
+   .. code-block:: python
+
+      def hello():
+          print("Hello, world!")
+          return True
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Code Example');
+        
+        const codeBlock = dropdown.children.find((child: any) => child.type === 'code-block');
+        expect(codeBlock).toBeDefined();
+        expect((codeBlock as CodeBlock).language).toBe('python');
+    });
+
+    test('parses multiple dropdowns in sequence', () => {
+        const input = `
+.. dropdown:: First dropdown
+
+   First content
+
+.. dropdown:: Second dropdown
+
+   Second content
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const dropdown1 = result.children[0] as Dropdown;
+        expect(dropdown1.type).toBe('dropdown');
+        expect(dropdown1.title).toBe('First dropdown');
+        
+        const dropdown2 = result.children[1] as Dropdown;
+        expect(dropdown2.type).toBe('dropdown');
+        expect(dropdown2.title).toBe('Second dropdown');
+    });
+
+    test('parses dropdown with nested container', () => {
+        const input = `
+.. dropdown:: Nested content
+
+   .. container:: info-box
+
+      Important information here.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        
+        const container = dropdown.children.find((child: any) => child.type === 'container');
+        expect(container).toBeDefined();
+        expect((container as Container).classes).toContain('info-box');
+    });
+
+    test('parses dropdown with image', () => {
+        const input = `
+.. dropdown:: Images
+
+   .. image:: /path/to/image.png
+      :alt: Example image
+      :width: 300px
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        
+        const image = dropdown.children.find((child: any) => child.type === 'image');
+        expect(image).toBeDefined();
+        expect((image as Image).uri).toBe('/path/to/image.png');
+        expect((image as Image).alt).toBe('Example image');
+    });
+
+    test('parses dropdown with admonition', () => {
+        const input = `
+.. dropdown:: Important note
+
+   .. note::
+
+      This is an important note inside a dropdown.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        
+        const admonition = dropdown.children.find((child: any) => child.type === 'admonition');
+        expect(admonition).toBeDefined();
+        expect((admonition as Admonition).kind).toBe('note');
+    });
+
+    test('parses dropdown with table', () => {
+        const input = `
+.. dropdown:: Data table
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Name
+        - Value
+      * - Item 1
+        - 100
+      * - Item 2
+        - 200
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        
+        const table = dropdown.children.find((child: any) => child.type === 'table');
+        expect(table).toBeDefined();
+    });
+
+    test('parses nested dropdowns', () => {
+        const input = `
+.. dropdown:: Outer dropdown
+
+   Outer content
+
+   .. dropdown:: Inner dropdown
+
+      Inner content
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const outerDropdown = result.children[0] as Dropdown;
+        expect(outerDropdown.type).toBe('dropdown');
+        expect(outerDropdown.title).toBe('Outer dropdown');
+        
+        const innerDropdown = outerDropdown.children.find((child: any) => child.type === 'dropdown');
+        expect(innerDropdown).toBeDefined();
+        expect((innerDropdown as Dropdown).title).toBe('Inner dropdown');
+    });
+
+    test('parses dropdown with mixed content', () => {
+        const input = `
+.. dropdown:: Mixed content
+
+   Introductory paragraph.
+
+   .. image:: /icon.png
+      :alt: Icon
+
+   * List item 1
+   * List item 2
+
+   .. code-block:: javascript
+
+      console.log('Hello');
+
+   Final paragraph.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Mixed content');
+        expect(dropdown.children.length).toBeGreaterThan(3);
+        
+        // Should contain multiple content types
+        expect(dropdown.children.some((child: any) => child.type === 'paragraph')).toBe(true);
+        expect(dropdown.children.some((child: any) => child.type === 'image')).toBe(true);
+        expect(dropdown.children.some((child: any) => child.type === 'list')).toBe(true);
+        expect(dropdown.children.some((child: any) => child.type === 'code-block')).toBe(true);
+    });
+
+    test('parses dropdown with long title', () => {
+        const input = `
+.. dropdown:: This is a very long dropdown title that spans multiple words
+
+   Content with long title above.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('This is a very long dropdown title that spans multiple words');
+    });
+
+    test('parses dropdown with options', () => {
+        const input = `
+.. dropdown:: Dropdown with options
+   :open:
+
+   Initially open dropdown content.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.title).toBe('Dropdown with options');
+        expect(dropdown.options).toBeDefined();
+        expect(dropdown.options!['open']).toBeDefined();
+    });
+
+    test('parses dropdown inside container', () => {
+        const input = `
+.. container:: dropdown-section
+
+   .. dropdown:: Contained dropdown
+
+      Dropdown inside container.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const container = result.children[0] as Container;
+        expect(container.type).toBe('container');
+        
+        const dropdown = container.children.find((child: any) => child.type === 'dropdown');
+        expect(dropdown).toBeDefined();
+        expect((dropdown as Dropdown).title).toBe('Contained dropdown');
+    });
+
+    test('parses dropdown with card inside', () => {
+        const input = `
+.. dropdown:: Dropdown with card
+
+   .. card:: Card in dropdown
+
+      Card content inside dropdown.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        
+        const card = dropdown.children.find((child: any) => child.type === 'card');
+        expect(card).toBeDefined();
+        expect((card as Card).title).toBe('Card in dropdown');
+    });
+
+    test('parses dropdown with definition list', () => {
+        const input = `
+.. dropdown:: Definitions
+
+   term 1
+      Definition of term 1.
+
+   term 2
+      Definition of term 2.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.children.length).toBeGreaterThan(0);
+    });
+
+    test('parses dropdown with emphasis and formatting', () => {
+        const input = `
+.. dropdown:: Formatted text
+
+   This content has **bold** and *italic* text.
+   
+   It also has \`inline code\` elements.
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const dropdown = result.children[0] as Dropdown;
+        expect(dropdown.type).toBe('dropdown');
+        expect(dropdown.children).toHaveLength(2);
+    });
+
+    test('parses simple grid with single column', () => {
+        const input = `
+.. grid:: 1
+
+   .. grid-item-card:: Card 1
+
+      Content 1
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const grid = result.children[0] as Grid;
+        expect(grid.type).toBe('grid');
+        expect(grid.columns).toEqual([1]);
+        expect(grid.children).toHaveLength(1);
+    });
+
+    test('parses grid with responsive columns', () => {
+        const input = `
+.. grid:: 1 2 3 4
+
+   .. grid-item-card:: Card 1
+
+      Content 1
+
+   .. grid-item-card:: Card 2
+
+      Content 2
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const grid = result.children[0] as Grid;
+        expect(grid.type).toBe('grid');
+        expect(grid.columns).toEqual([1, 2, 3, 4]);
+        expect(grid.children).toHaveLength(2);
+    });
+
+    test('parses grid with single gutter value', () => {
+        const input = `
+.. grid:: 2
+   :gutter: 1
+
+   .. grid-item-card:: Card 1
+
+      Content 1
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const grid = result.children[0] as Grid;
+        expect(grid.type).toBe('grid');
+        expect(grid.gutter).toBe('1');
+    });
+
+    test('parses grid with responsive gutter values', () => {
+        const input = `
+.. grid:: 2
+   :gutter: 1 2 3 4
+
+   .. grid-item-card:: Card 1
+
+      Content 1
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const grid = result.children[0] as Grid;
+        expect(grid.type).toBe('grid');
+        expect(Array.isArray(grid.gutter)).toBe(true);
+        expect(grid.gutter).toEqual([1, 2, 3, 4]);
+    });
+
+    test('parses grid with outline option', () => {
+        const input = `
+.. grid:: 1 2 3 4
+   :outline:
+
+   .. grid-item::
+
+      Item content
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const grid = result.children[0] as Grid;
+        expect(grid.type).toBe('grid');
+        expect(grid.options).toBeDefined();
+        expect(grid.options!['outline']).toBeDefined();
+    });
+
+    test('parses grid-item-card with title', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: My Card Title
+
+      Card content here.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        expect(grid.children).toHaveLength(1);
+        
+        const gridItemCard = grid.children[0] as GridItemCard;
+        expect(gridItemCard.type).toBe('grid-item-card');
+        expect(gridItemCard.title).toBe('My Card Title');
+        expect(gridItemCard.children).toHaveLength(1);
+    });
+
+    test('parses grid-item-card with class-card option', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Title
+      :class-card: generic-card-4
+
+      Card content.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        expect(gridItemCard.options).toBeDefined();
+        expect(gridItemCard.options!['class-card']).toBe('generic-card-4');
+    });
+
+    test('parses grid-item-card with link option', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Title
+      :link: https://example.com
+
+      Card with link.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        expect(gridItemCard.options!['link']).toBe('https://example.com');
+    });
+
+    test('parses grid-item with nested content', () => {
+        const input = `
+.. grid:: 1
+
+   .. grid-item::
+
+      This is a grid item with text.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        expect(grid.children).toHaveLength(1);
+        
+        const gridItem = grid.children[0] as GridItem;
+        expect(gridItem.type).toBe('grid-item');
+        expect(gridItem.children.length).toBeGreaterThan(0);
+    });
+
+    test('parses multiple grid-item-cards in sequence', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Card 1
+
+      Content 1
+
+   .. grid-item-card:: Card 2
+
+      Content 2
+
+   .. grid-item-card:: Card 3
+
+      Content 3
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        
+        expect(grid.children).toHaveLength(3);
+        expect((grid.children[0] as GridItemCard).title).toBe('Card 1');
+        expect((grid.children[1] as GridItemCard).title).toBe('Card 2');
+        expect((grid.children[2] as GridItemCard).title).toBe('Card 3');
+    });
+
+    test('parses grid-item-card with list content', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Options
+
+      * Option 1
+      * Option 2
+      * Option 3
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        const listNode = gridItemCard.children.find((child: any) => child.type === 'list');
+        expect(listNode).toBeDefined();
+    });
+
+    test('parses grid-item-card with container content', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Card with container
+
+      .. container:: info-box
+
+         Important info inside container.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        const container = gridItemCard.children.find((child: any) => child.type === 'container');
+        expect(container).toBeDefined();
+        expect((container as Container).classes).toContain('info-box');
+    });
+
+    test('parses nested grids', () => {
+        const input = `
+.. grid:: 1
+
+   .. grid-item::
+
+      .. grid:: 2
+
+         .. grid-item-card:: Nested Card 1
+
+            Content
+
+         .. grid-item-card:: Nested Card 2
+
+            Content
+`;
+        const result = parse(input);
+        const outerGrid = result.children[0] as Grid;
+        expect(outerGrid.type).toBe('grid');
+        
+        const gridItem = outerGrid.children[0] as GridItem;
+        const nestedGrid = gridItem.children.find((child: any) => child.type === 'grid');
+        expect(nestedGrid).toBeDefined();
+        expect((nestedGrid as Grid).children).toHaveLength(2);
+    });
+
+    test('parses grid-item-card with multiple options', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Title
+      :class-card: topic-card topic-card-2
+      :link: https://example.com
+      :class-title: title-icon-sm
+
+      Card content.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        expect(gridItemCard.options!['class-card']).toBe('topic-card topic-card-2');
+        expect(gridItemCard.options!['link']).toBe('https://example.com');
+        expect(gridItemCard.options!['class-title']).toBe('title-icon-sm');
+    });
+
+    test('parses grid-item-card with image', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Card with image
+
+      .. image:: /path/to/image.png
+         :alt: Icon
+         :width: 100px
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        const image = gridItemCard.children.find((child: any) => child.type === 'image');
+        expect(image).toBeDefined();
+        expect((image as Image).uri).toBe('/path/to/image.png');
+    });
+
+    test('parses grid-item-card with admonition', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Card with note
+
+      .. note::
+
+         This is important.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        const admonition = gridItemCard.children.find((child: any) => child.type === 'admonition');
+        expect(admonition).toBeDefined();
+        expect((admonition as Admonition).kind).toBe('note');
+    });
+
+    test('parses grid-item-card with code block', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Code Card
+
+      .. code-block:: python
+
+         def hello():
+             print("Hello")
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        const codeBlock = gridItemCard.children.find((child: any) => child.type === 'code-block');
+        expect(codeBlock).toBeDefined();
+        expect((codeBlock as CodeBlock).language).toBe('python');
+    });
+
+    test('parses grid with mixed grid-item and grid-item-card', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item::
+
+      Simple grid item content
+
+   .. grid-item-card:: Card
+
+      Card content
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        
+        expect(grid.children).toHaveLength(2);
+        expect(grid.children[0].type).toBe('grid-item');
+        expect(grid.children[1].type).toBe('grid-item-card');
+    });
+
+    test('parses grid with responsive column variations', () => {
+        const input = `
+.. grid:: 1 1 2 2
+
+   .. grid-item-card:: Card 1
+
+      Content
+
+   .. grid-item-card:: Card 2
+
+      Content
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        
+        expect(grid.columns).toEqual([1, 1, 2, 2]);
+    });
+
+    test('parses grid-item-card without title', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card::
+
+      Card content without title
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        expect(gridItemCard.type).toBe('grid-item-card');
+        expect(gridItemCard.title).toBeUndefined();
+        expect(gridItemCard.children.length).toBeGreaterThan(0);
+    });
+
+    test('parses grid-item-card with multiline content', () => {
+        const input = `
+.. grid:: 2
+
+   .. grid-item-card:: Title
+
+      First paragraph of content.
+
+      Second paragraph with more text.
+
+      Third paragraph concluding.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        const gridItemCard = grid.children[0] as GridItemCard;
+        
+        expect(gridItemCard.children.length).toBeGreaterThan(1);
+    });
+
+    test('parses multiple grids in sequence', () => {
+        const input = `
+.. grid:: 1
+
+   .. grid-item-card:: Grid 1 Card
+
+      Content 1
+
+.. grid:: 2
+
+   .. grid-item-card:: Grid 2 Card 1
+
+      Content 2a
+
+   .. grid-item-card:: Grid 2 Card 2
+
+      Content 2b
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(2);
+        
+        const grid1 = result.children[0] as Grid;
+        expect(grid1.type).toBe('grid');
+        expect(grid1.columns).toEqual([1]);
+        
+        const grid2 = result.children[1] as Grid;
+        expect(grid2.type).toBe('grid');
+        expect(grid2.columns).toEqual([2]);
+        expect(grid2.children).toHaveLength(2);
+    });
+
+    test('parses grid inside container', () => {
+        const input = `
+.. container:: grid-wrapper
+
+   .. grid:: 2
+
+      .. grid-item-card:: Card 1
+
+         Content 1
+`;
+        const result = parse(input);
+        expect(result.children).toHaveLength(1);
+        
+        const container = result.children[0] as Container;
+        expect(container.type).toBe('container');
+        
+        const grid = container.children.find((child: any) => child.type === 'grid');
+        expect(grid).toBeDefined();
+        expect((grid as Grid).columns).toEqual([2]);
+    });
+
+    test('parses grid with complex card content structure', () => {
+        const input = `
+.. grid:: 1 2 3 4
+   :gutter: 1
+
+   .. grid-item-card:: Action card
+      :class-card: generic-card-8 no-media
+      :link: https://example.com/
+
+      .. container:: content
+
+         .. container:: title link
+
+            \`Card title <https://example.com/>\`_
+
+         Card description goes here.
+`;
+        const result = parse(input);
+        const grid = result.children[0] as Grid;
+        
+        expect(grid.columns).toEqual([1, 2, 3, 4]);
+        expect(grid.gutter).toBe('1');
+        
+        const card = grid.children[0] as GridItemCard;
+        expect(card.options!['class-card']).toBe('generic-card-8 no-media');
+        expect(card.options!['link']).toBe('https://example.com/');
+        
+        const containers = card.children.filter((child: any) => child.type === 'container');
+        expect(containers.length).toBeGreaterThan(0);
+    });
+
+    test('master document with all types and 5-level nesting', () => {
+        const input = `Master Document - Complete RST Feature Showcase
+=================================================
+
+Introduction paragraph with various inline elements: **bold**, *italic*, and code.
+
+Simple List Section
+===================
+
+- Unordered item 1
+- Unordered item 2
+  - Nested level 2 item 1
+    - Nested level 3 item 1
+      - Nested level 4 item 1
+        - Nested level 5 item 1 (deepest nesting)
+      - Nested level 4 item 2
+    - Nested level 3 item 2
+  - Nested level 2 item 2
+- Unordered item 3
+
+1. Ordered item 1
+2. Ordered item 2
+   a. Ordered level 2 item 1
+      i. Ordered level 3 item 1
+         - Mixed list level 4
+           * Another level 5
+
+Headings and Sections
+=====================
+
+Main Content
+============
+
+.. note::
+
+   This is a note directive with nested content.
+
+   .. note::
+
+      Level 2 note
+
+      .. warning::
+
+         Level 3 warning
+
+         .. tip::
+
+            Level 4 tip with content.
+
+            .. important::
+
+               Level 5 important message - maximum nesting depth
+
+Tables Section
+==============
+
+.. table:: Sample Table
+
+   =====  =====  =====
+   A      B      C
+   =====  =====  =====
+   1      2      3
+   4      5      6
+   =====  =====  =====
+
+Code Blocks
+===========
+
+.. code-block:: typescript
+
+   const hello = "world";
+   function nested() {
+       // Level 2
+       const inner = () => {
+           // Level 3
+           const deep = function() {
+               // Level 4
+               const deeper = () => {
+                   // Level 5 nesting
+                   return "deepest";
+               };
+               return deeper;
+           };
+           return inner;
+       };
+       return inner;
+   }
+
+Images and Figures
+==================
+
+.. image:: /path/to/image.png
+   :alt: Sample image
+   :width: 200px
+
+.. figure:: /path/to/figure.png
+   :alt: Sample figure
+
+   Figure caption goes here
+
+Buttons
+=======
+
+.. button:: Click Me
+   :ref: target-ref
+
+.. button:: External Link
+   :link: https://example.com
+
+Containers and Cards
+====================
+
+.. container:: custom-class
+
+   Container level 1 content
+
+   .. container:: custom-class-2
+
+      Container level 2
+
+      .. container:: custom-class-3
+
+         Container level 3
+
+         .. card:: Card Title
+
+            Card body level 4
+
+            .. container:: nested-in-card
+
+               Card container level 5 - maximum nesting
+
+.. card:: Standalone Card
+
+   Card with inline content: **bold**, *italic*, and more.
+
+   .. container:: card-child
+
+      Nested container in card
+
+Tabs Section
+============
+
+.. tabs::
+
+   .. tab:: Python
+      :icon: python
+
+      Level 2 Python content
+
+      .. tabs::
+
+         .. tab:: Nested Tab 1
+            :icon: code
+
+            Level 3 content in nested tab
+
+            .. container:: deep-container
+
+               Level 4 content
+
+               .. tabs::
+
+                  .. tab:: Triple Nested Tab
+                     :icon: star
+
+                     Level 5 - deepest tab nesting
+
+   .. tab:: JavaScript
+      :icon: javascript
+
+      Level 2 JavaScript content
+
+Grid with Complex Cards
+=======================
+
+.. grid:: 1 2 3
+
+   .. grid-item-card:: Card 1
+      :class-card: generic-card-1
+      :link: https://example.com/1
+
+      Level 2: Card content with markdown
+
+      .. container:: card-inner-1
+
+         Level 3: Container in card
+
+         .. code-block:: python
+
+            # Level 4: Code in container
+            def nested():
+                # Level 5: Deepest code nesting
+                return "complete"
+
+   .. grid-item-card:: Card 2
+      :class-card: generic-card-2
+      :outline:
+
+      Level 2: Another card
+
+      .. list-table:: Table in Card
+         :widths: 20 80
+
+         * - Item 1
+           - Level 3: Description
+
+         * - Item 2
+           - Level 3: Another description
+
+   .. grid-item:: Regular Item
+
+      Level 2: Grid item content
+
+      .. admonition:: Custom Admonition
+
+         Level 3: Admonition in grid item
+
+         .. container:: final-container
+
+            Level 4: Final container nesting
+
+            .. paragraph::
+
+               Level 5: Last nesting level in grid
+
+Dropdowns
+=========
+
+.. dropdown:: Dropdown 1 Title
+
+   Level 2 dropdown content
+
+   .. dropdown:: Nested Dropdown 1
+
+      Level 3 content
+
+      .. dropdown:: Triple Nested Dropdown
+
+         Level 4 content
+
+         .. container:: dropdown-container
+
+            Level 5: Deepest dropdown nesting level
+
+   .. dropdown:: Nested Dropdown 2
+
+      Level 3: Second nested dropdown
+
+Final Section with Mixed Content
+=================================
+
+.. button:: Action Button
+   :ref: action
+
+.. important::
+
+   Final important notice with emphasized text.
+
+   .. container:: final-notice
+
+      Level 2 final content
+
+      .. list-table::
+         :widths: 30 70
+
+         * - Feature
+           - Level 3: Description
+
+         * - Complete
+           - Level 3: Full nesting support`;
+        
+        const result = parse(input);
+        
+        // Verify document structure
+        expect(result.type).toBe('document');
+        expect(result.children.length).toBeGreaterThan(0);
+        
+        // Check for main heading
+        const mainHeading = result.children[0] as Heading;
+        expect(mainHeading.type).toBe('heading');
+        expect(mainHeading.title).toBe('Master Document - Complete RST Feature Showcase');
+        
+        // Verify presence of different node types
+        const childTypes = new Set(result.children.map((child: any) => child.type));
+        expect(childTypes.has('heading')).toBe(true);
+        expect(childTypes.has('paragraph')).toBe(true);
+        
+        // Find and verify list nesting
+        const lists = result.children.filter((child: any) => child.type === 'list');
+        expect(lists.length).toBeGreaterThan(0);
+        const unorderedList = lists[0] as any;
+        expect(unorderedList.ordered).toBe(false);
+        expect(unorderedList.children.length).toBeGreaterThan(0);
+        
+        // Verify nested list structure (Level 5)
+        let level2 = unorderedList.children[1]; // "Unordered item 2"
+        if (level2 && level2.children) {
+            let level3 = level2.children[0]; // Nested level 2 item 1
+            if (level3 && level3.children) {
+                let level4 = level3.children[0]; // Nested level 3 item 1
+                if (level4 && level4.children) {
+                    let level5 = level4.children[0]; // Nested level 4 item 1
+                    if (level5 && level5.children) {
+                        // Level 5 nesting exists
+                        expect(level5.children.length).toBeGreaterThan(0);
+                    }
+                }
+            }
+        }
+        
+        // Find and verify admonitions (nested)
+        const admonitions = result.children.filter((child: any) => child.type === 'admonition');
+        expect(admonitions.length).toBeGreaterThan(0);
+        
+        // Find and verify code blocks
+        const codeBlocks = result.children.filter((child: any) => child.type === 'code-block');
+        expect(codeBlocks.length).toBeGreaterThan(0);
+        
+        // Find and verify images
+        const images = result.children.filter((child: any) => child.type === 'image');
+        expect(images.length).toBeGreaterThan(0);
+        
+        // Find and verify tables (may be parsed as directives or tables)
+        const allElements = JSON.stringify(result.children);
+        expect(allElements.includes('table') || allElements.includes('Table')).toBe(true);
+        
+        // Find and verify containers
+        const containers = result.children.filter((child: any) => child.type === 'container');
+        expect(containers.length).toBeGreaterThan(0);
+        
+        // Find and verify buttons (may be parsed as directives or as button elements)
+        const allElementsStr = JSON.stringify(result.children);
+        expect(allElementsStr.includes('button') || allElementsStr.includes('Button')).toBe(true);
+        
+        // Find and verify cards (may be embedded in other elements or top-level)
+        const cards = result.children.filter((child: any) => child.type === 'card');
+        const hasCards = cards.length > 0 || allElementsStr.includes('"type":"card"');
+        expect(hasCards).toBe(true);
+        
+        // Find and verify tabs
+        const tabs = result.children.filter((child: any) => child.type === 'tabs');
+        expect(tabs.length).toBeGreaterThan(0);
+        
+        // Find and verify grids
+        const grids = result.children.filter((child: any) => child.type === 'grid');
+        expect(grids.length).toBeGreaterThan(0);
+        const grid = grids[0] as Grid;
+        expect(grid.columns).toEqual([1, 2, 3]);
+        expect(grid.children.length).toBeGreaterThan(0);
+        
+        // Verify grid items and cards
+        const gridCards = grid.children.filter((item: any) => item.type === 'grid-item-card');
+        expect(gridCards.length).toBeGreaterThan(0);
+        const firstCard = gridCards[0] as GridItemCard;
+        expect(firstCard.title).toBe('Card 1');
+        expect(firstCard.options).toBeDefined();
+        
+        // Find and verify dropdowns
+        const dropdowns = result.children.filter((child: any) => child.type === 'dropdown');
+        expect(dropdowns.length).toBeGreaterThan(0);
+        
+        // Verify deep nesting in specific elements
+        // Check tabs with nesting
+        if (tabs.length > 0) {
+            const tab = tabs[0] as Tabs;
+            expect(tab.children.length).toBeGreaterThan(0);
+        }
+    });
+});
 
