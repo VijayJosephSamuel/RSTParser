@@ -15,14 +15,35 @@ export class DirectiveParser {
         const line = this.state.peekLine();
         if (!line) return null;
 
-        const match = line.match(/^\s*\.\.\s+([a-zA-Z0-9-_]+)::(.*)$/);
-        if (!match) return null;
-        
-        // Skip table directives - they are handled by TableDirectiveParser
-        const directiveName = match[1];
-        if (directiveName === 'list-table' || directiveName === 'flat-table' || directiveName === 'csv-table') {
+        // First check if this is a comment or special RST form (.. ...)
+        // This includes:
+        // - Comments: .. followed by text (no ::)
+        // - References: .. _label:
+        // - Substitutions: .. |name|
+        // - Other unknown directive-like forms
+        if (line.trim().startsWith('.. ')) {
+            // Check if it's a proper directive (with ::)
+            const match = line.match(/^\s*\.\.\s+([a-zA-Z0-9-_]+)::(.*)$/);
+            
+            // If not a proper directive, treat as a comment/special form
+            if (!match) {
+                // Consume the comment line and any continuation lines
+                this.consumeComment();
+                return null; // Comments don't produce output nodes
+            }
+            
+            // Skip table directives - they are handled by TableDirectiveParser
+            const directiveName = match[1];
+            if (directiveName === 'list-table' || directiveName === 'flat-table' || directiveName === 'csv-table') {
+                return null;
+            }
+        } else {
+            // Not a directive/comment at all
             return null;
         }
+
+        // Handle proper directives with ::
+        const match = line.match(/^\s*\.\.\s+([a-zA-Z0-9-_]+)::(.*)$/);
         if (!match) return null;
 
         this.state.consumeLine(); // Consume the directive line
@@ -135,5 +156,49 @@ export class DirectiveParser {
             if (line.trim() === '') return '';
             return line.substring(minIndent);
         });
+    }
+
+    private consumeComment(): void {
+        const commentLine = this.state.peekLine();
+        if (!commentLine || !commentLine.trim().startsWith('.. ')) {
+            return;
+        }
+
+        this.state.consumeLine();
+        
+        // Continuation lines for comments must be indented more than the comment start
+        const commentIndent = this.state.getIndentation(commentLine);
+        
+        // Consume any continuation lines that are more indented
+        while (this.state.hasMoreLines()) {
+            const nextLine = this.state.peekLine();
+            // Note: peekLine can return empty string for empty lines, which is falsy
+            // So check for null explicitly instead of using !nextLine
+            if (nextLine === null) break;
+            
+            // Empty lines can be part of the comment block
+            if (nextLine.trim() === '') {
+                // Peek ahead to see if there's a continuation
+                const lineAfter = this.state.peekLine(1);
+                if (lineAfter !== null && this.state.getIndentation(lineAfter) > commentIndent) {
+                    // It's a continuation, consume the empty line
+                    this.state.consumeLine();
+                    continue;
+                } else {
+                    // End of comment block
+                    break;
+                }
+            }
+            
+            // Non-empty line: check if it's indented more than the comment
+            const nextIndent = this.state.getIndentation(nextLine);
+            if (nextIndent > commentIndent) {
+                // This is a continuation line
+                this.state.consumeLine();
+            } else {
+                // End of comment block
+                break;
+            }
+        }
     }
 }

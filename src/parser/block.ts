@@ -212,7 +212,7 @@ export class BlockParser {
         };
     }
 
-    private parseParagraph(): Paragraph {
+    private parseParagraph(): Paragraph | null {
         const lines: string[] = [];
         while (this.state.hasMoreLines()) {
             const line = this.state.peekLine();
@@ -249,6 +249,11 @@ export class BlockParser {
             }
 
             lines.push(this.state.consumeLine()!.trim());
+        }
+
+        // Don't create empty paragraphs
+        if (lines.length === 0) {
+            return null;
         }
 
         const text = lines.join(' ');

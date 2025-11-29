@@ -5141,7 +5141,7 @@ Final Section with Mixed Content
         expect(table.rows.length).toBeGreaterThan(0);
 
         // Verify header row (first and only row in the table object)
-        const headerRow = table.rows[0];
+        let headerRow = table.rows[0];
         expect(headerRow.cells).toBeDefined();
         expect(headerRow.cells.length).toBe(5);
 
@@ -5174,22 +5174,192 @@ Final Section with Mixed Content
         expect(table.rows.length).toBe(11);
         
         // Verify the first row is the header
-        const headerRow = table.rows[0];
-        expect(headerRow.cells.length).toBe(3);
+        headerRow = table.rows[0];
+        expect(headerRow.cells.length).toBe(5);
         expect(headerRow.cells[0].children.length).toBe(0); // Empty cell (..)
         expect((headerRow.cells[1].children[0] as any).children?.[0]?.value).toBe('Head 1');
         expect((headerRow.cells[2].children[0] as any).children?.[0]?.value).toBe('Head 2');
+        expect((headerRow.cells[3].children[0] as any).children?.[0]?.value).toBe('Head 3');
+        expect((headerRow.cells[4].children[0] as any).children?.[0]?.value).toBe('Head 4');
         
         // Verify a data row
         const dataRow = table.rows[1];
-        expect(dataRow.cells.length).toBe(3);
+        expect(dataRow.cells.length).toBe(5);
         expect((dataRow.cells[0].children[0] as any).children?.[0]?.value).toBe('Row 1');
         expect((dataRow.cells[1].children[0] as any).children?.[0]?.value).toBe('Data 1.1');
         expect((dataRow.cells[2].children[0] as any).children?.[0]?.value).toBe('Data 1.2');
+        expect((dataRow.cells[3].children[0] as any).children?.[0]?.value).toBe('Data 1.3');
+        expect((dataRow.cells[4].children[0] as any).children?.[0]?.value).toBe('Data 1.4');
         
         // Verify no separate list is created for data rows
         const lists = result.children.filter((child: any) => child.type === 'list');
         expect(lists.length).toBe(0);
     });
 });
+
+describe('RST Comments and Special Directives', () => {
+    test('parses comment with include directive', () => {
+        const input = `.. include:: ../substitutions.rst.in`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        expect(result.children.length).toBe(1);
+        expect(result.children[0].type).toBe('directive');
+        const directive = result.children[0] as any;
+        expect(directive.name).toBe('include');
+        expect(directive.args).toEqual(['../substitutions.rst.in']);
+    });
+
+    test('parses navtitle comment line', () => {
+        const input = `.. navtitle: Olive`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // Comment should be consumed but not create any node
+        expect(result.children.length).toBe(0);
+    });
+
+    test('parses reference anchor definition', () => {
+        const input = `.. _Onnxruntime-Genai:`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // Reference/anchor should be consumed but not create any node
+        expect(result.children.length).toBe(0);
+    });
+
+    test('parses generic comment block', () => {
+        const input = `.. this is a generic comment
+   that spans multiple lines
+   with proper indentation`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // Comments should be consumed but not create any nodes
+        expect(result.children.length).toBe(0);
+    });
+
+    test('parses multiple comment blocks', () => {
+        const input = `.. first comment
+
+.. second comment
+
+.. third comment`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // All comments should be consumed
+        expect(result.children.length).toBe(0);
+    });
+
+    test('handles mix of text, comments, and directives', () => {
+        const input = `Some introductory text
+
+.. include:: ../substitutions.rst.in
+
+.. navtitle: Olive
+
+.. _Onnxruntime-Genai:
+
+Main content paragraph
+
+.. _another-reference:
+
+More content here`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        
+        // Should only have text paragraphs and the include directive
+        const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
+        const directives = result.children.filter((child: any) => child.type === 'directive');
+        
+        expect(directives.length).toBe(1);
+        expect(directives[0].name).toBe('include');
+        expect(paragraphs.length).toBe(3);
+        
+        // Check paragraph contents
+        const p0 = (paragraphs[0] as Paragraph).children[0]! as any;
+        const p1 = (paragraphs[1] as Paragraph).children[0]! as any;
+        const p2 = (paragraphs[2] as Paragraph).children[0]! as any;
+        expect(p0.value).toBe('Some introductory text');
+        expect(p1.value).toBe('Main content paragraph');
+        expect(p2.value).toBe('More content here');
+    });
+
+    test('handles comment with empty line continuation', () => {
+        const input = `.. this is a comment
+
+   with continuation after blank line
+
+.. next item`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // All comments should be consumed, result should be empty
+        expect(result.children.length).toBe(0);
+    });
+
+    test('parses substitution definition comment', () => {
+        const input = `.. |project| replace:: My Project`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        // Substitution definition should be consumed as a comment
+        expect(result.children.length).toBe(0);
+    });
+
+    test('handles unknown directive-like syntax', () => {
+        const input = `.. unknown-directive-form: with some value
+
+Paragraph after unknown directive`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        
+        // Unknown directive-like form should be treated as comment
+        const directives = result.children.filter((child: any) => child.type === 'directive');
+        const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
+        
+        expect(directives.length).toBe(0); // Not a proper directive
+        expect(paragraphs.length).toBe(1);
+        expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Paragraph after unknown directive');
+    });
+
+    test('handles comment at end of document', () => {
+        const input = `Some text
+
+.. final comment at end`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        
+        const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
+        const comments = result.children.filter((child: any) => 
+            child.type !== 'paragraph' && child.type !== 'directive'
+        );
+        
+        expect(paragraphs.length).toBe(1);
+        expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Some text');
+        expect(comments.length).toBe(0); // Comment is consumed
+    });
+
+    test('handles nested comment blocks without creating empty paragraphs', () => {
+        const input = `.. comment 1
+
+.. comment 2
+
+.. comment 3`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        
+        // No nodes should be created for comments
+        expect(result.children.length).toBe(0);
+    });
+
+    test('handles comment with multiline continuation', () => {
+        const input = `.. this is a multiline comment
+   that continues on the next line
+   and also on this line
+
+Text after comment`;
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        
+        const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
+        expect(paragraphs.length).toBe(1);
+        expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Text after comment');
+    });
+});
+
 
