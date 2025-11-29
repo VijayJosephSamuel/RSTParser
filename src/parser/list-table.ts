@@ -16,8 +16,22 @@ export class ListTableParser {
 
         while (this.state.hasMoreLines()) {
             const line = this.state.peekLine();
-            if (!line || !line.trim().startsWith('* -')) break;
+            console.log(`[ListTableParser] Main loop iteration - hasMoreLines: ${this.state.hasMoreLines()}, currentIdx: ${this.state.getCurrentLineIndex()}`);
+            console.log(`[ListTableParser] peek: "${line}"`);
             
+            // Skip blank lines and continue to next row
+            if (!line || line.trim() === '') {
+                console.log(`[ListTableParser] skipping blank line`);
+                this.state.consumeLine();
+                continue;
+            }
+            
+            if (!line.trim().startsWith('* -')) {
+                console.log(`[ListTableParser] breaking - no row marker`);
+                break;
+            }
+            
+            console.log(`[ListTableParser] parsing row: "${line}"`);
             this.state.consumeLine(); // Consume the '* - content' line
             const rowIndent = this.state.getIndentation(line);
             
@@ -34,17 +48,22 @@ export class ListTableParser {
             // Parse remaining cells in the row
             while (this.state.hasMoreLines()) {
                 const cellLine = this.state.peekLine();
+                console.log(`[ListTableParser] inner loop - cellLine: "${cellLine}"`);
                 if (!cellLine) break;
                 
                 const cellTrimmed = cellLine.trim();
                 const cellIndent = this.state.getIndentation(cellLine);
                 
+                console.log(`[ListTableParser] inner loop - cellTrimmed: "${cellTrimmed}", cellIndent: ${cellIndent}, rowIndent: ${rowIndent}`);
+                
                 if (cellTrimmed.startsWith('* -') || cellTrimmed.startsWith('*-') || cellIndent < rowIndent) {
+                    console.log(`[ListTableParser] inner loop - breaking (new row or low indent)`);
                     break; // Next row or end of table
                 }
                 
                 // Check for cell marker: "- " or just "-" (for empty cells)
                 if (cellTrimmed.startsWith('- ') || cellTrimmed === '-') {
+                    console.log(`[ListTableParser] inner loop - found cell marker`);
                     this.state.consumeLine();
                     const dashPos = cellLine.indexOf('-');
                     const cellContent = cellTrimmed === '-' ? '' : cellLine.substring(dashPos + 2);
@@ -56,15 +75,20 @@ export class ListTableParser {
                     
                     cells.push(this.parseCell(cellLines.join('\n')));
                 } else {
+                    console.log(`[ListTableParser] inner loop - not a cell marker, breaking`);
                     break; // Not a cell line
                 }
             }
             
             if (cells.length > 0) {
+                console.log(`[ListTableParser] adding row with ${cells.length} cells, currentIdx: ${this.state.getCurrentLineIndex()}`);
                 rows.push({ type: 'table_row', cells });
             }
+            
+            console.log(`[ListTableParser] row complete, currentIdx: ${this.state.getCurrentLineIndex()}, going back to outer loop`);
         }
 
+        console.log(`[ListTableParser] Exited main loop - hasMoreLines: ${this.state.hasMoreLines()}, currentIdx: ${this.state.getCurrentLineIndex()}`);
         if (rows.length === 0) return null;
 
         return {
@@ -77,8 +101,11 @@ export class ListTableParser {
     }
 
     private collectCellContinuationLines(cellLines: string[], cellContentIndent: number, rowIndent: number): void {
+        let lineCount = 0;
         while (this.state.hasMoreLines()) {
             const nextLine = this.state.peekLine();
+            console.log(`[collectCellContinuationLines] checking line: "${nextLine}" (rowIndent: ${rowIndent}, cellIndent: ${cellContentIndent})`);
+            
             if (!nextLine) break;
             
             const nextTrimmed = nextLine.trim();
@@ -86,22 +113,27 @@ export class ListTableParser {
             
             // Check if this is a new row marker at the row level (not nested content)
             if ((nextTrimmed.startsWith('* -') || nextTrimmed.startsWith('*-')) && nextIndent <= rowIndent) {
+                console.log(`[collectCellContinuationLines] breaking - new row marker`);
                 break;
             }
             
             // Check if this is a new cell marker at the same level
             // Cell markers are "- " or just "-" (for empty cells)
             if ((nextTrimmed.startsWith('- ') || nextTrimmed === '-') && nextIndent <= rowIndent + 2) {
+                console.log(`[collectCellContinuationLines] breaking - new cell marker`);
                 break;
             }
             
             // Check if we've dedented past the cell content level (but not for empty lines)
             if (nextTrimmed !== '' && nextIndent < cellContentIndent && nextIndent <= rowIndent) {
+                console.log(`[collectCellContinuationLines] breaking - dedented past cell level`);
                 break;
             }
             
             // This is a continuation line for the current cell
+            console.log(`[collectCellContinuationLines] consuming continuation line ${lineCount}`);
             this.state.consumeLine();
+            lineCount++;
             
             // Dedent the line relative to the cell content indent
             if (nextTrimmed === '') {

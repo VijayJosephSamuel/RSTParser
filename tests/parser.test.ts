@@ -5048,5 +5048,148 @@ Final Section with Mixed Content
             expect(tab.children.length).toBeGreaterThan(0);
         }
     });
+
+    test('parses flat-table with headers, stub columns, and multiple options', () => {
+        // NOTE: Current parser behavior - flat-table is partially parsed:
+        // - Header rows are correctly parsed into table structure
+        // - Data rows are parsed as a separate list (limitation in current parser)
+        // This test documents current behavior and validates what IS working
+        const input = `.. flat-table:: Dummy Data Table
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: 10 20 20 20 20
+   :class: longtable
+
+   * - ..
+     - Head 1
+     - Head 2
+     - Head 3
+     - Head 4
+
+   * - Row 1
+     - Data 1.1
+     - Data 1.2
+     - Data 1.3
+     - Data 1.4
+
+   * - Row 2
+     - Data 2.1
+     - Data 2.2
+     - Data 2.3
+     - Data 2.4
+
+   * - Row 3
+     - Data 3.1
+     - Data 3.2
+     - Data 3.3
+     - Data 3.4
+
+   * - Row 4
+     - Data 4.1
+     - Data 4.2
+     - Data 4.3
+     - Data 4.4
+
+   * - Row 5
+     - Data 5.1
+     - Data 5.2
+     - Data 5.3
+     - Data 5.4
+
+   * - Row 6
+     - Data 6.1
+     - Data 6.2
+     - Data 6.3
+     - Data 6.4
+
+   * - Row 7
+     - Data 7.1
+     - Data 7.2
+     - Data 7.3
+     - Data 7.4
+
+   * - Row 8
+     - Data 8.1
+     - Data 8.2
+     - Data 8.3
+     - Data 8.4
+
+   * - Row 9
+     - Data 9.1
+     - Data 9.2
+     - Data 9.3
+     - Data 9.4
+
+   * - Row 10
+     - Data 10.1
+     - Data 10.2
+     - Data 10.3
+     - Data 10.4`;
+
+        const result = parse(input);
+        expect(result.type).toBe('document');
+        expect(result.children.length).toBeGreaterThan(0);
+
+        // WORKING: Header table is correctly parsed
+        const tables = result.children.filter((child: any) => child.type === 'table');
+        expect(tables.length).toBeGreaterThan(0);
+
+        const table = tables[0] as Table;
+        
+        // Verify table structure for header row
+        expect(table.rows).toBeDefined();
+        expect(table.rows.length).toBeGreaterThan(0);
+
+        // Verify header row (first and only row in the table object)
+        const headerRow = table.rows[0];
+        expect(headerRow.cells).toBeDefined();
+        expect(headerRow.cells.length).toBe(5);
+
+        // Verify header cells contain expected content
+        const getCellValue = (row: any, cellIndex: number): string => {
+            const cell = row?.cells[cellIndex] as TableCell;
+            return cell?.children?.[0]?.children?.[0]?.value || '';
+        };
+
+        // Header row: empty, Head 1, Head 2, Head 3, Head 4
+        expect(getCellValue(headerRow, 0)).toBe('');
+        expect(getCellValue(headerRow, 1)).toBe('Head 1');
+        expect(getCellValue(headerRow, 2)).toBe('Head 2');
+        expect(getCellValue(headerRow, 3)).toBe('Head 3');
+        expect(getCellValue(headerRow, 4)).toBe('Head 4');
+
+        // Verify table options are correctly parsed
+        expect(table.header_rows).toBe(1);
+        expect(table.stub_columns).toBe(1);
+
+        if (table.options) {
+            expect(table.options['header-rows']).toBe('1');
+            expect(table.options['stub-columns']).toBe('1');
+            expect(table.options['class']).toBe('longtable');
+            expect(table.options['widths']).toBe('10 20 20 20 20');
+        }
+
+        // Verify all rows are in the table (1 header + 10 data rows)
+        expect(table.rows).toBeDefined();
+        expect(table.rows.length).toBe(11);
+        
+        // Verify the first row is the header
+        const headerRow = table.rows[0];
+        expect(headerRow.cells.length).toBe(3);
+        expect(headerRow.cells[0].children.length).toBe(0); // Empty cell (..)
+        expect((headerRow.cells[1].children[0] as any).children?.[0]?.value).toBe('Head 1');
+        expect((headerRow.cells[2].children[0] as any).children?.[0]?.value).toBe('Head 2');
+        
+        // Verify a data row
+        const dataRow = table.rows[1];
+        expect(dataRow.cells.length).toBe(3);
+        expect((dataRow.cells[0].children[0] as any).children?.[0]?.value).toBe('Row 1');
+        expect((dataRow.cells[1].children[0] as any).children?.[0]?.value).toBe('Data 1.1');
+        expect((dataRow.cells[2].children[0] as any).children?.[0]?.value).toBe('Data 1.2');
+        
+        // Verify no separate list is created for data rows
+        const lists = result.children.filter((child: any) => child.type === 'list');
+        expect(lists.length).toBe(0);
+    });
 });
 

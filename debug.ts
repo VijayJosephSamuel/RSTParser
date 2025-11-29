@@ -1,18 +1,21 @@
 import { parse } from './src/index';
 
-const input = `.. grid:: 1
+const input = `.. flat-table:: Dummy Data Table
+   :header-rows: 1
+   :stub-columns: 1
 
-   .. grid-item-card:: Card 1
-      :class-card: generic-card
+   * - ..
+     - Head 1
+     - Head 2
 
-      Content 1`;
+   * - Row 1
+     - Data 1.1
+     - Data 1.2
 
-console.log("Input:");
-input.split('\n').forEach((line, i) => {
-    console.log(`  ${i}: "${line}"`);
-});
+   * - Row 2
+     - Data 2.1
+     - Data 2.2`;
 
-console.log("\nParsed:");
 const result = parse(input);
 console.log(JSON.stringify(result, null, 2));
 

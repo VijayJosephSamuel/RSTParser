@@ -71,25 +71,36 @@ export class TableDirectiveParser {
         
         while (this.state.hasMoreLines()) {
             const bodyLine = this.state.peekLine();
-            if (!bodyLine) break;
+            if (bodyLine === null || bodyLine === undefined) {
+                console.log(`[TableDirectiveParser] bodyLine is null/undefined`);
+                break;
+            }
             
             if (bodyLine.trim() === '') {
+                console.log(`[TableDirectiveParser] Adding blank line`);
                 bodyLines.push(bodyLine);
                 this.state.consumeLine();
                 continue;
             }
             
             const currentIndent = this.state.getIndentation(bodyLine);
+            console.log(`[TableDirectiveParser] Non-blank line, checking indent: ${currentIndent} >= ${bodyIndent}?`);
             if (currentIndent >= bodyIndent) {
                 bodyLines.push(bodyLine);
                 this.state.consumeLine();
+                console.log(`[TableDirectiveParser] Added body line`);
             } else {
+                console.log(`[TableDirectiveParser] Breaking - indent ${currentIndent} < ${bodyIndent}`);
                 break;
             }
         }
         
         const dedented = this.dedent(bodyLines);
         const bodyText = dedented.join('\n');
+        
+        console.log(`[TableDirectiveParser] Body lines before dedent: ${bodyLines.length}`);
+        console.log(`[TableDirectiveParser] Body text:\n${bodyText}`);
+        console.log(`[TableDirectiveParser] Body split: ${bodyText.split('\n').length}`);
         
         if (bodyText.trim() === '') return null;
         
