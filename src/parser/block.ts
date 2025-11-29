@@ -177,7 +177,7 @@ export class BlockParser {
             return this.parseSection();
         }
 
-        // Default to Paragraph
+        // Default to Paragraph (may return null if no content)
         return this.parseParagraph();
     }
 

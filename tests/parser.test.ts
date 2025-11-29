@@ -5213,16 +5213,24 @@ describe('RST Comments and Special Directives', () => {
         const input = `.. navtitle: Olive`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // Comment should be consumed but not create any node
-        expect(result.children.length).toBe(0);
+        // Comment should be parsed as a directive
+        expect(result.children.length).toBe(1);
+        const directive = result.children[0] as any;
+        expect(directive.type).toBe('directive');
+        expect(directive.name).toBe('navtitle');
+        expect(directive.args).toContain('Olive');
     });
 
     test('parses reference anchor definition', () => {
         const input = `.. _Onnxruntime-Genai:`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // Reference/anchor should be consumed but not create any node
-        expect(result.children.length).toBe(0);
+        // Reference/anchor should be parsed as a directive
+        expect(result.children.length).toBe(1);
+        const directive = result.children[0] as any;
+        expect(directive.type).toBe('directive');
+        expect(directive.name).toBe('reference');
+        expect(directive.args[0]).toBe('Onnxruntime-Genai');
     });
 
     test('parses generic comment block', () => {
@@ -5231,8 +5239,11 @@ describe('RST Comments and Special Directives', () => {
    with proper indentation`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // Comments should be consumed but not create any nodes
-        expect(result.children.length).toBe(0);
+        // Comments should be parsed as directives
+        expect(result.children.length).toBe(1);
+        const directive = result.children[0] as any;
+        expect(directive.type).toBe('directive');
+        expect(directive.name).toBe('comment');
     });
 
     test('parses multiple comment blocks', () => {
@@ -5243,8 +5254,11 @@ describe('RST Comments and Special Directives', () => {
 .. third comment`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // All comments should be consumed
-        expect(result.children.length).toBe(0);
+        // All comments should be parsed as directives
+        expect(result.children.length).toBe(3);
+        expect((result.children[0] as any).type).toBe('directive');
+        expect((result.children[1] as any).type).toBe('directive');
+        expect((result.children[2] as any).type).toBe('directive');
     });
 
     test('handles mix of text, comments, and directives', () => {
@@ -5264,12 +5278,13 @@ More content here`;
         const result = parse(input);
         expect(result.type).toBe('document');
         
-        // Should only have text paragraphs and the include directive
+        // Should have text paragraphs and directives
         const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
         const directives = result.children.filter((child: any) => child.type === 'directive');
         
-        expect(directives.length).toBe(1);
-        expect(directives[0].name).toBe('include');
+        // 1 include + 1 navtitle + 2 references = 4 directives
+        expect(directives.length).toBe(4);
+        // 3 paragraphs
         expect(paragraphs.length).toBe(3);
         
         // Check paragraph contents
@@ -5289,16 +5304,24 @@ More content here`;
 .. next item`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // All comments should be consumed, result should be empty
-        expect(result.children.length).toBe(0);
+        // Both comments should be parsed as directives
+        expect(result.children.length).toBe(2);
+        expect((result.children[0] as any).type).toBe('directive');
+        expect((result.children[0] as any).name).toBe('comment');
+        expect((result.children[1] as any).type).toBe('directive');
+        expect((result.children[1] as any).name).toBe('comment');
     });
 
     test('parses substitution definition comment', () => {
         const input = `.. |project| replace:: My Project`;
         const result = parse(input);
         expect(result.type).toBe('document');
-        // Substitution definition should be consumed as a comment
-        expect(result.children.length).toBe(0);
+        // Substitution definition should be parsed as a directive
+        expect(result.children.length).toBe(1);
+        const directive = result.children[0] as any;
+        expect(directive.type).toBe('directive');
+        expect(directive.name).toBe('substitution');
+        expect(directive.args).toContain('project');
     });
 
     test('handles unknown directive-like syntax', () => {
@@ -5308,11 +5331,12 @@ Paragraph after unknown directive`;
         const result = parse(input);
         expect(result.type).toBe('document');
         
-        // Unknown directive-like form should be treated as comment
+        // Unknown directive-like form should be parsed as a directive
         const directives = result.children.filter((child: any) => child.type === 'directive');
         const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
         
-        expect(directives.length).toBe(0); // Not a proper directive
+        expect(directives.length).toBe(1);
+        expect(directives[0].name).toBe('unknown-directive-form');
         expect(paragraphs.length).toBe(1);
         expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Paragraph after unknown directive');
     });
@@ -5325,13 +5349,12 @@ Paragraph after unknown directive`;
         expect(result.type).toBe('document');
         
         const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
-        const comments = result.children.filter((child: any) => 
-            child.type !== 'paragraph' && child.type !== 'directive'
-        );
+        const directives = result.children.filter((child: any) => child.type === 'directive');
         
         expect(paragraphs.length).toBe(1);
         expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Some text');
-        expect(comments.length).toBe(0); // Comment is consumed
+        expect(directives.length).toBe(1); // Comment is now a directive
+        expect((directives[0] as any).name).toBe('comment');
     });
 
     test('handles nested comment blocks without creating empty paragraphs', () => {
@@ -5343,8 +5366,11 @@ Paragraph after unknown directive`;
         const result = parse(input);
         expect(result.type).toBe('document');
         
-        // No nodes should be created for comments
-        expect(result.children.length).toBe(0);
+        // All comments should be parsed as directives
+        expect(result.children.length).toBe(3);
+        expect((result.children[0] as any).type).toBe('directive');
+        expect((result.children[1] as any).type).toBe('directive');
+        expect((result.children[2] as any).type).toBe('directive');
     });
 
     test('handles comment with multiline continuation', () => {
@@ -5357,6 +5383,10 @@ Text after comment`;
         expect(result.type).toBe('document');
         
         const paragraphs = result.children.filter((child: any) => child.type === 'paragraph');
+        const directives = result.children.filter((child: any) => child.type === 'directive');
+        
+        expect(directives.length).toBe(1);
+        expect((directives[0] as any).name).toBe('comment');
         expect(paragraphs.length).toBe(1);
         expect(((paragraphs[0] as Paragraph).children[0]! as any).value).toBe('Text after comment');
     });

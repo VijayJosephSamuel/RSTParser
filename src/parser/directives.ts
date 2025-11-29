@@ -26,10 +26,9 @@ export class DirectiveParser {
             const match = line.match(/^\s*\.\.\s+([a-zA-Z0-9-_]+)::(.*)$/);
             
             // If not a proper directive, treat as a comment/special form
+            // but still create a directive node for it
             if (!match) {
-                // Consume the comment line and any continuation lines
-                this.consumeComment();
-                return null; // Comments don't produce output nodes
+                return this.parseCommentAsDirective();
             }
             
             // Skip table directives - they are handled by TableDirectiveParser
@@ -158,22 +157,69 @@ export class DirectiveParser {
         });
     }
 
-    private consumeComment(): void {
+
+    /**
+     * Parses comment-like lines and special RST constructs as directives
+     * These include:
+     * - Regular comments: .. this is a comment
+     * - References/anchors: .. _label:
+     * - Substitutions: .. |name| replacement
+     * - Other directive-like forms that don't match the :: pattern
+     */
+    private parseCommentAsDirective(): Directive | null {
         const commentLine = this.state.peekLine();
         if (!commentLine || !commentLine.trim().startsWith('.. ')) {
-            return;
+            return null;
         }
 
         this.state.consumeLine();
         
-        // Continuation lines for comments must be indented more than the comment start
-        const commentIndent = this.state.getIndentation(commentLine);
+        // Extract the comment content after ".."
+        const trimmed = commentLine.trim();
+        const content = trimmed.substring(2).trim(); // Remove ".." prefix
         
-        // Consume any continuation lines that are more indented
+        // Determine the directive name/type
+        let name = 'comment'; // default
+        let args: string[] = [];
+        
+        // Check for special forms
+        if (content.startsWith('_')) {
+            // Reference/anchor: .. _label: or .. _`label with spaces`:
+            name = 'reference';
+            const match = content.match(/^_(`[^`]+`|[^:]+):\s*(.*)?$/);
+            if (match) {
+                args = [match[1]];
+                if (match[2]) args.push(match[2]);
+            } else {
+                args = [content];
+            }
+        } else if (content.startsWith('|') && content.includes('|')) {
+            // Substitution: .. |name| replacement
+            name = 'substitution';
+            const match = content.match(/^\|([^|]+)\|\s*(.*)?$/);
+            if (match) {
+                args = [match[1]];
+                if (match[2]) args.push(match[2]);
+            } else {
+                args = [content];
+            }
+        } else if (content.includes(':')) {
+            // Unknown directive-like form: .. name: value
+            const colonIndex = content.indexOf(':');
+            name = content.substring(0, colonIndex);
+            const value = content.substring(colonIndex + 1).trim();
+            if (value) args = [value];
+        } else {
+            // Generic comment
+            args = [content];
+        }
+
+        // Collect continuation lines
+        const commentIndent = this.state.getIndentation(commentLine);
+        const bodyLines: string[] = [];
+        
         while (this.state.hasMoreLines()) {
             const nextLine = this.state.peekLine();
-            // Note: peekLine can return empty string for empty lines, which is falsy
-            // So check for null explicitly instead of using !nextLine
             if (nextLine === null) break;
             
             // Empty lines can be part of the comment block
@@ -182,6 +228,7 @@ export class DirectiveParser {
                 const lineAfter = this.state.peekLine(1);
                 if (lineAfter !== null && this.state.getIndentation(lineAfter) > commentIndent) {
                     // It's a continuation, consume the empty line
+                    bodyLines.push(nextLine);
                     this.state.consumeLine();
                     continue;
                 } else {
@@ -194,11 +241,33 @@ export class DirectiveParser {
             const nextIndent = this.state.getIndentation(nextLine);
             if (nextIndent > commentIndent) {
                 // This is a continuation line
+                bodyLines.push(nextLine);
                 this.state.consumeLine();
             } else {
                 // End of comment block
                 break;
             }
         }
+
+        // Parse body content if there are continuation lines
+        let bodyNodes: Node[] = [];
+        if (bodyLines.length > 0) {
+            const cleanedBodyLines = this.dedent(bodyLines);
+            const bodyText = cleanedBodyLines.join('\n');
+            if (bodyText.trim()) {
+                const subState = new ParserState(bodyText);
+                const subParser = new BlockParser(subState);
+                const subDoc = subParser.parse();
+                bodyNodes = subDoc.children;
+            }
+        }
+
+        return {
+            type: 'directive',
+            name: name,
+            args: args,
+            options: {},
+            body: bodyNodes,
+        };
     }
 }
